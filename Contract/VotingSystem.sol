@@ -27,3 +27,8 @@ function getData(address _candidateAddress) public view
  returns(string memory,uint){
 require(msg.sender == owner, "Only the owner can 
  perform this action.");
+return(candidates[_candidateAddress].name,
+ candidates[_candidateAddress].voteCount);
+}
+}
+
