@@ -4,6 +4,7 @@ The E-voting using blockchain is implemented using technologies:
 1) React/Vanilla JS
 2) Remix IDE
 3) MetaMask
+4) Ganache/Test network
 
 The code for the smart contract for the simple e-voting system is provided in the Contract Folder.
 The smart contract features are:
