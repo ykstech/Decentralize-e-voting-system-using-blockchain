@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Voting System Frontend</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+
+      h1 {
+        margin-bottom: 20px;
+      }
+
+      input[type="text"] {
+        padding: 8px;
+        margin-bottom: 10px;
+        width: 200px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      button {
+        padding: 8px 20px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #45a049;
+      }
+
+      select {
+        padding: 8px;
+        margin-bottom: 10px;
+        width: 200px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      canvas {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>E-Voting System using Blockchain</h1>
+
+    <div style="display: none" id="candidates"></div>
+    <br />
+    <h4 id="accountaddress"></h4>
+    <div id="addblock" style="display: none">
+      <h3>Add Candidate (only Owner)</h3>
+      <input
+        type="text"
+        id="candidateName"
+        placeholder="Enter candidate name"
+      />
+      <button onclick="addCandidate()">Add Candidate</button>
+    </div>
+    <h3>Vote for Candidate</h3>
+    <select id="candidateList"></select>
+    <button onclick="voteCandidate()">Vote</button>
+    <div style="height: 200px; width: 500px; margin: 20px auto">
+      <canvas id="myChart" aria-label="Hello ARIA World" role="img"></canvas>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script>
+      let web3;
+      let contract;
+      let accounts;
+      let account;
+      let myChart;
+      let owner;
+      let addb = document.getElementById("addblock");
+      let accountdisplay = document.getElementById("accountaddress");
+      
+      connectMetaMask();
+      async function connectMetaMask() {
+        if (typeof window.ethereum !== "undefined") {
+          web3 = new Web3(window.ethereum);
+          try {
+            await window.ethereum.enable();
+            console.log("Connected to MetaMask");
+            accounts = await web3.eth.getAccounts();
+            await window.ethereum.on("accountsChanged", handleAccountsChanged);
+            account = accounts[0];
+
+            contract = new web3.eth.Contract(contractABI, contractAddress);
+             owner = await contract.methods.owner().call();
+
+             accountdisplay.innerText="Account: "+account;
+
+            console.log("owner: ", owner);
+            console.log("account: ", account);
+            
+            if (account.toLowerCase() === owner.toLowerCase()) {
+              addb.style.display = "block";
+            } else {
+              addb.style.display = "none";
+            }
+            refreshCandidates();
+          } catch (error) {
+            console.error("User denied account access");
+          }
+        } else {
+          console.error("Please install MetaMask!");
+        }
+      }
+
+      async function handleAccountsChanged(newAccounts) {
+        account = newAccounts[0];
+        console.log("Account changed:", account);
+        if (account.toLowerCase() === owner.toLowerCase()) {
+              addb.style.display = "block";
+            } else {
+              addb.style.display = "none";
+            }
+         accountdisplay.innerText="Account: "+account;
+
+      }
+
+      async function addCandidate() {
+        const candidateName = document.getElementById("candidateName").value;
+        try {
+          await contract.methods
+            .addCandidate(candidateName)
+            .send({ from: account });
+          alert("Candidate added successfully");
+          refreshCandidates();
+        } catch (error) {
+          alert("candidate not added ! ERROR");
+        }
+      }
+
+      async function refreshCandidates() {
+        const candidatesCount = await contract.methods.candidatesCount().call();
+        const candidatesDiv = document.getElementById("candidates");
+        candidatesDiv.innerHTML = "";
+
+        const candidateList = document.getElementById("candidateList");
+        candidateList.innerHTML = "";
+
+        const candidateNames = [];
+        const voteCounts = [];
+
+        for (let i = 1; i <= candidatesCount; i++) {
+          const candidate = await contract.methods.candidates(i).call();
+          const candidateDiv = document.createElement("div");
+          candidateDiv.innerHTML =
+            candidate.name + " - votes: " + candidate.voteCount;
+          candidatesDiv.appendChild(candidateDiv);
+
+          const option = document.createElement("option");
+          option.value = candidate.id;
+          option.text = candidate.name;
+          candidateList.appendChild(option);
+
+          candidateNames.push(candidate.name);
+          voteCounts.push(candidate.voteCount);
+        }
+        drawChart(candidateNames, voteCounts);
+      }
+      async function drawChart(candidateNames, voteCounts) {
+        const ctx = document.getElementById("myChart");
+        if (myChart) {
+          myChart.destroy(); 
+        }
+        myChart = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: candidateNames,
+            datasets: [
+              {
+                label: "Vote Count",
+                data: voteCounts,
+                backgroundColor: "rgba(54, 162, 235, 0.2)",
+                borderColor: "rgba(54, 162, 235, 1)",
+                borderWidth: 0.5,
+              },
+            ],
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+      }
+
+      async function voteCandidate() {
+        const candidateId = parseInt(
+          document.getElementById("candidateList").value
+        );
+        try {
+          await contract.methods
+            .voteCandidate(candidateId)
+            .send({ from: account });
+          alert("Vote cast successfully");
+          refreshCandidates();
+        } catch (error) {
+          alert("You have already voted");
+        }
+      }
+
+      const contractABI = [
+        {
+          inputs: [],
+          stateMutability: "nonpayable",
+          type: "constructor",
+        },
+        {
+          inputs: [
+            {
+              internalType: "string",
+              name: "_name",
+              type: "string",
+            },
+          ],
+          name: "addCandidate",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          name: "candidates",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "id",
+              type: "uint256",
+            },
+            {
+              internalType: "string",
+              name: "name",
+              type: "string",
+            },
+            {
+              internalType: "uint256",
+              name: "voteCount",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "candidatesCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "owner",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_candidateId",
+              type: "uint256",
+            },
+          ],
+          name: "voteCandidate",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+      ];
+      const contractAddress = "0x6ea149d05ECD4b20e67bB9e5C460C71a1E51F7c0";
+    </script>
+  </body>
+</html>
